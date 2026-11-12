@@ -1,0 +1,512 @@
+{
+  "name": "workbuddy-cost-audit",
+  "displayName": "积分对账审计应用",
+  "version": "3.4.1",
+  "schema": "skill-manifest/1",
+  "description": "积分对账审计应用：只读采集本机 Agent 日志与积分上报，输出四个一级菜单共十个页面的离线审计报告（监控审计舱 / 对账中心：今日收支流水 · 任务消耗明细 · T+1 日终对账 · 对账台簿 / 审计控制：执行监测 · 任务设置 · 收入配置 · 回收调整 / 运营分析）。v3.0 起工程结构为 Core + Adapter + Renderer 三层解耦，同一套逻辑一键发布为 Skill / 桌面版 / 插件 / Web 四种形态；v3.1 起信息架构改为四个一级菜单；v3.2 起目录与分层一一对应（无转发壳）、桌面版提供 Windows 一键安装包与轻量本地存储、页面全一屏呈现。",
+  "author": "WorkBuddy Cost Audit",
+  "license": "MIT",
+  "entry": {
+    "type": "python",
+    "command": "python -m hosts.commands.audit",
+    "module": "hosts.cli",
+    "function": "main",
+    "fallback": [
+      "python",
+      "py -3"
+    ],
+    "hosts": {
+      "cli": "python -m hosts.commands.audit --format html --out out --yes",
+      "skill": "python -m hosts.skill --input '{\"last\":\"7d\"}'",
+      "desktop": "python -m hosts.desktop",
+      "plugin": "python -m hosts.plugin",
+      "web": "python -m hosts.web --out dist/web"
+    },
+    "publish": "python publish.py --target all"
+  },
+  "runtime": {
+    "python": ">=3.9",
+    "dependencies": [],
+    "optional_dependencies": [
+      "platformdirs>=2.0"
+    ],
+    "stdlib_only": true,
+    "notes": "全部逻辑仅用标准库；platformdirs 缺失时回退 Path.home()，不构成硬依赖。不再需要 OCR / 截图 / 浏览器调试端口相关二进制。"
+  },
+  "compatibility": {
+    "workbuddy": ">=1.0",
+    "codebuddy": ">=1.0",
+    "claude_code": "best-effort",
+    "os": [
+      "windows",
+      "macos",
+      "linux"
+    ]
+  },
+  "triggers": {
+    "keywords": [
+      "积分消耗",
+      "token 消耗",
+      "消耗台账",
+      "耗支流水",
+      "耗支对账",
+      "任务监测",
+      "隐藏调用",
+      "后台自动化",
+      "当前余额",
+      "今日余额",
+      "今日消耗",
+      "预警比",
+      "初始积分",
+      "预警阈值",
+      "积分监测",
+      "异常消耗",
+      "重复重试",
+      "上下文膨胀",
+      "定时任务消耗",
+      "模型对比",
+      "cost audit",
+      "credit usage",
+      "token audit",
+      "credit balance",
+      "credit ledger"
+    ],
+    "slash": [
+      "/cost-audit"
+    ],
+    "auto": false
+  },
+  "permissions": {
+    "fs": {
+      "read": [
+        "~/.workbuddy/logs/**",
+        "~/.workbuddy/projects/**",
+        "~/.workbuddy/workbuddy.db",
+        "~/.codebuddy/logs/**",
+        "~/.codebuddy/projects/**",
+        "~/.codebuddy/codebuddy.db",
+        "~/.claude/projects/**",
+        "~/.openclaw/logs/**",
+        "<cwd>/**"
+      ],
+      "write": [
+        "<out-dir>/**",
+        "<project>/config/**"
+      ],
+      "deny": [
+        "~/.ssh/**",
+        "~/.gnupg/**",
+        "~/.aws/**",
+        "~/.config/gcloud/**",
+        "~/Library/Keychains/**",
+        "**/*.pem",
+        "**/*.key",
+        "**/*.p12",
+        "**/*.pfx",
+        "**/.env",
+        "**/id_rsa",
+        "**/id_ed25519",
+        "**/credentials*",
+        "**/*cookie*"
+      ]
+    },
+    "network": {
+      "allow": [],
+      "note": "空数组是硬约束：sandbox_check 检测到非空白名单会直接阻断运行。本版不与任何端口（含本机 loopback 调试端口）通信，也不对外发出任何请求。"
+    },
+    "process": {
+      "spawn": [
+        "node"
+      ],
+      "note": "node 仅用于生成报告前的 JS 语法自检，缺失时静默跳过。本版不再注册任何系统计划任务，也不 spawn 截图 / OCR 相关进程。定时刷新由 hosts/commands/refresh_report.py 在本机进程内直接调用 audit.py 完成，不 spawn 子进程、不消耗对话积分。"
+    },
+    "env": {
+      "read": [
+        "USERNAME",
+        "USER",
+        "TMPDIR",
+        "TEMP",
+        "LOCALAPPDATA",
+        "APPDATA",
+        "WBC_BALANCE_STATE"
+      ],
+      "note": "只读用户名与临时目录，用于审计日志署名和数据库副本落地；WBC_BALANCE_STATE 若存在则用其覆盖余额状态文件路径。"
+    }
+  },
+  "sandbox": {
+    "readonly": true,
+    "deny_path_parts": [
+      ".ssh",
+      ".gnupg",
+      ".aws",
+      ".config/gcloud",
+      "Keychains"
+    ],
+    "sensitive_names": [
+      ".env",
+      "id_rsa",
+      "id_ed25519",
+      "credentials",
+      "cookies"
+    ],
+    "deny_modules": [
+      "requests",
+      "httpx",
+      "aiohttp",
+      "urllib3",
+      "http.client"
+    ],
+    "max_output_bytes": 10485760,
+    "max_output_note": "单次运行全部产出（含 HTML）合计不超过 10 MB，超限以退出码 1 结束。",
+    "path_check": "resolve() 后必须落在 fs.read 白名单根内",
+    "audit_log": "每次运行追加一行 audit-log.jsonl（仅追加，不覆盖）"
+  },
+  "outputs": {
+    "default_dir": "./cost-audit-output",
+    "files": [
+      {
+        "name": "report.html",
+        "desc": "四菜单十页离线报告（监控审计舱 / 对账中心四页 / 审计控制四页 / 运营分析），自包含、无 CDN；全部页面一屏不滚动"
+      },
+      {
+        "name": "summary.json",
+        "desc": "总量、质量、数据源、分级、告警条"
+      },
+      {
+        "name": "budget_status.json",
+        "desc": "积分监测：初始积分 / 今日余额 / 今日消耗 / 当前余额 / 消耗% / 告警级别，外加耗支对账与实测速率"
+      },
+      {
+        "name": "anomalies.json",
+        "desc": "八条规则命中与止损空间（不提供回收）"
+      },
+      {
+        "name": "recommendations.json",
+        "desc": "三档建议（结构化）"
+      },
+      {
+        "name": "recommendations.md",
+        "desc": "三档建议（可直接贴到周报）"
+      },
+      {
+        "name": "tasks.csv",
+        "desc": "任务级台账"
+      },
+      {
+        "name": "steps.csv",
+        "desc": "步骤级台账"
+      },
+      {
+        "name": "daily_stats.csv",
+        "desc": "按日聚合"
+      },
+      {
+        "name": "scheduled_summary.csv",
+        "desc": "定时任务窗口内实测执行与积分（不做月度折算）"
+      },
+      {
+        "name": "monitor_records.csv",
+        "desc": "任务监测：定时 / 后台 / 技能子代理 / 隐藏调用的逐条执行记录"
+      },
+      {
+        "name": "audit-log.jsonl",
+        "desc": "运行审计日志（仅追加）"
+      },
+      {
+        "name": "last-refresh.json",
+        "desc": "定时刷新状态快照（仅 refresh_report.py 生成）：最近一次刷新时间、退出码、告警级别、当前余额、今日消耗"
+      },
+      {
+        "name": "refresh.log",
+        "desc": "定时刷新运行日志（仅 refresh_report.py 生成，追加写）"
+      }
+    ]
+  },
+  "exit_codes": {
+    "0": "正常完成；或用户取消授权；或未配置积分监测（未填初始积分 / 今日余额）时不产生级别",
+    "2": "黄色告警：今日消耗 / 当前余额 ≥ 黄色阈值（默认 10%）",
+    "3": "橙色告警：今日消耗 / 当前余额 ≥ 橙色阈值（默认 20%）",
+    "4": "红色告警：今日消耗 / 当前余额 ≥ 红色阈值（默认 30%）",
+    "1": "运行错误（安全自检失败、采集异常、输出超限）"
+  },
+  "state_files": {
+    "config/balance-state.json": "积分监测唯一真相源 v3：initial_credits / initial_date / initial_source(measured|derived|manual) / today_balance / today_balance_date / today_balance_snapshot{file,sha256,taken_at,account,day_open,ref} / thresholds。用 audit.py --set-* 或 balance_snapshot.py add --apply 写，不要手改；WBC_BALANCE_STATE 可换路径。today_balance 是「当日**日初**余额」，日终对账会自动折成日末（− 当日消耗）再比。",
+    "config/credit-income.json": "收入台账 v3（单人上传凭证快照 + 录入记录留痕）：entries[] 每笔含 id / date / type / amount / snapshot{file,sha256,bytes,taken_at} / revisions[]（CREATE/EDIT/SUBMIT/REOPEN/VOID 的 before/after）/ status(draft|confirmed|void)。用 hosts/commands/income_entry.py 写入，不要手改；WBC_INCOME_CFG 可覆盖路径。v2 的 reviewer 字段读入后收进 legacy，仅留痕、不参与判定。",
+    "config/income-entry-log.jsonl": "收入留痕日志（append-only）：每次动作一行，含 ts / id / action / by / host / before / after / snapshot_sha256，并用 prev_hash + hash 组成哈希链。verify 会逐行校验，断链或篡改退出码 5。WBC_INCOME_LOG 可覆盖路径。",
+    "config/balance-snapshots.jsonl": "余额凭证台账（append-only）：每条含 taken_at / account（截图值）/ day_open（日初）/ spent_before / imputed / shot{file,sha256,bytes} / by / host，并用 prev_hash + hash 组成哈希链。balance_snapshot.py verify 逐行校验，断链或篡改退出码 5。",
+    "config/vouchers/**": "凭证仓库：余额截图与收入凭证复制进这里，文件名含日期与哈希前 8 位，同哈希复用、异内容拒写。文件本身不加密，但被改动会在 verify 里以 SHOT_TAMPERED / EVIDENCE_TAMPERED 暴露。",
+    "dist/**": "四形态发布产物（publish.py 生成，可随时重建）"
+  },
+  "changes_2_0_0": [
+    "视图从六个收敛为四个：删除「积分预警」独立页并入总览与台账，删除「异常消耗」独立菜单并入台账第三个标签页",
+    "积分监测改为纯人工口径：移除 panel_probe.py / balance_watch.py / 截屏 / OCR / 旁车文件 / 系统计划任务注册",
+    "告警判据由「剩余百分比」改为「消耗百分比」，默认阈值 70 / 85 / 95",
+    "balance-state.json 升到 version 2：today_balance 取代 current_balance，version/阈值结构归一",
+    "报告页保存的设置只写浏览器 localStorage（key wbc.balance.v2），不写文件；长期生效用 --set-* CLI"
+  ],
+  "changes_2_1_0": [
+    "「总览监控」更名为「监控总览」；「本机只读数据」胶囊移到视图标题后（间距 10px）",
+    "监控总览的「当前余额」唯一取自 消耗台账 · 耗支流水 · 积分监测 板块的当前余额，并附来源链接",
+    "消耗台账删除「积分耗支」板块与「恢复报告值」按钮，统计行由三行收敛为两行",
+    "耗支流水的筛选条件上移为统一筛选栏，置于页签上方，对耗支流水 / 耗支对账 / 异常消耗三个页签同时生效",
+    "顶栏「积分实测率」改为「数据更新」按钮：按采集快照重算并强制重绘四个视图（不联网重新采集）",
+    "任务监测 · 定时任务配置 增加「任务配置」入口：生成 schtasks / crontab 命令与 WorkBuddy 定时自动化提示语，配置存 localStorage wbc.autoupdate.v1"
+  ],
+  "changes_2_2_0": [
+    "告警口径改为「今日消耗 / 当前余额」：超过阈值按红/橙/黄告警，未超阈值显示绿色正常；阈值默认改为 10 / 20 / 30，仍可配",
+    "删除顶栏五处描述文案（当前余额来源链接、视图副标题、消耗耗支说明等），顶栏只留标题 + 本机只读标识 + 数据更新 + 导出说明",
+    "任务监测页：消耗构成 / 四类不可见执行 / 定时任务配置合并为一行三卡；删除「自动化执行记录」整块表格；补跑与中断信息并入 KPI",
+    "监控总览、消耗台账、任务监测三页全部固定一屏呈现：整页不滚动，超长内容在卡片内部滚动；对比分析与建议保留整页滚动",
+    "删除「积分耗支」板块与「恢复报告值」按钮（承接 v2.1），台账统计收敛为两行"
+  ],
+  "changes_2_3_0": [
+    "新增 hosts/commands/refresh_report.py：定时重跑采集入口，给系统计划任务直接调用；内部复用 audit.py 口径，触发时只跑本机 Python、不唤醒 WorkBuddy、不消耗积分",
+    "refresh_report.py 自带并发锁（out/.refresh.lock.json）、运行日志（out/refresh.log）与状态快照（out/last-refresh.json），退出码与 audit.py 一致（0/2/3/4/1）",
+    "任务监测 → 定时任务配置 → 任务配置 新增「任务执行脚本」区块：支持在线编辑、从本机导入（.bat/.sh/.py/.txt）、下载保存到本机；脚本落盘后系统计划任务只执行这一个文件，改脚本无需重新生成任务",
+    "任务配置生成的 schtasks / crontab 命令改为直接调用本地脚本文件，不再每次重新拼接 audit.py 命令；交给 WorkBuddy 创建的提示语明确标注仅首次创建时需要用一次",
+    "所有表格列宽按该列实际内容自适应：内容多的列（任务名）自动放宽，数字与状态列保持紧凑，超长内容省略而非挤压邻列；窗口尺寸变化时自动重算",
+    "监控总览「基本消耗排行」默认展示 Top 5，标题改为「基本消耗排行top5」"
+  ],
+  "changes_2_4_0": [
+    "监控总览重新排版，消除大面积留白：三行高度改为 auto/1fr/auto，图表行吃满剩余空间；五张 KPI 卡改纵向 flex 布局，数值垂直居中、脚注统一贴底对齐",
+    "总览告警卡并入采集层风险提示（异常消耗待处理 / 定时任务待治理 / 不可见执行占比偏高），条目由 2 条增至 5-6 条，卡片标题改为「告警与待办」并支持点击跳转对应页签",
+    "总览排行卡新增汇总条：Top5 合计积分、其余任务合计积分与各自占比，填满卡片下半部",
+    "耗支对账页改为 30 / 70 布局：「余额对账 · 今日账面」占 30%，「第二来源对账 · 积分口径」占 70%；筛选提示上提为整行，不再挤在窄卡内",
+    "耗支对账的差异标红到具体行：差异率超容差（默认 ±5%）且绝对偏差超 0.5 积分的行整行标红并加判定列（超差/偏差/一致），同时新增「偏差最大的一行」提示块，点名具体任务、日期与偏差值",
+    "列宽自适应给徽标列留 6px 安全余量，避免徽标与内容区边界零余量时被截断",
+    "窄卡内容压缩并可内部滚动，消除等式块过高导致的底部裁切"
+  ],
+  "changes_2_6_0": [
+    "v2.1 方案落地之一 · 余额口径重构：新增「当前可用余额 / 当前实时余额 / 日结计算值」三口径条，并在日终对账页原位自检「实时 − 日结 = 今日待确认收入」，彻底消除今日收入被计算两次导致的系统性虚高",
+    "收入记录新增确认状态（confirmed 已入账 / pending 草稿·待复核 / void 退回·已冲正），只有「已入账」进入账本与日结计算值；待确认只进实时余额展示，并在流水表里以「待确认」标签区分",
+    "删除全部积分回收能力：不提供回收按钮、回收流水与回收率；相关文案统一改为「止损空间」，并明确「已消耗、向前止损而非回溯退分」",
+    "「异常消耗」页签改名为「异常处置」：新增顶部诚实提示条（固定不可关）、异常确认率 / 止损覆盖率 / 异常重复率三项质量指标，替代原「可回收积分」口径",
+    "新增异常事件处置抽屉：证据快照（8 格）+ 归因树（候选根因/暂未命中）+ 六类止损措施多选（冻结额度/调整任务配置/限制模型/降低定时频率/暂停后台任务/通知负责人）+ 处置记录时间线；状态机 OPEN→INVESTIGATING→CONFIRMED→MITIGATING→MITIGATED→CLOSED/IGNORED，处置留痕存本机 localStorage，支持导出 JSON 证据链（含步骤级积分/耗时/token）",
+    "新增「补偿申请（预留）」禁用占位卡与「了解详情」弹窗，写明厂商未开放补偿 API、行业无失败补偿标准，以及三条触发条件与内部启用前提",
+    "16 位流水号：收入线改用固定缩写池 mnthly / topupx / promox / tskrwd / rechrg / refund；桶内序列 01—99 后溢出转两位 36 进制（A0—ZZ），再溢出才换桶，不回绕",
+    "任务监测新增「T+1 日终对账」定时任务配置入口（默认每天 00:00，可调），内置对账脚本模板与 schtasks / crontab 命令、提prompt 创建用语；脚本只调本机 Python，零积分消耗",
+    "视觉层：色彩改用 Radix Colors 的 dark 色阶（第 9 步填充 / 第 11 步深底正文），间距改用 IBM Carbon 8pt 刻度，全部落成 CSS 变量（--bad-9 / --sp-05 / --r-2 / --fs-body …），规则里不再写死色值；ECharts 经 paint() 解析层吃同一套令牌，避免色板抄两份",
+    "流水 / 明细页重排：表格按内容自适应 + 24 小时分布当脚注图（柱高固定 84px、垂直居中），右列近 7 日收支与 T 日支出 Top 5；空行按页大小补位并在首行给「已全部列出」收尾说明，消除卡片下半截空洞",
+    "日终对账页右列合并为单卡「偏差与调账」：偏差清单 + 四格结账摘要 + T+1 结转链路 + 折叠的「对账参数」（渐进披露），修掉 300px 窄卡里标题/副标题逐字换行与内容溢出",
+    "可访问性与细节：:focus-visible 焦点环、prefers-reduced-motion 降级、数字 tabular-nums 等宽、数字列右对齐；图表单类目时加 barMaxWidth，避免柱子长成一整块色板"
+  ],
+  "designSpec": {
+    "philosophy": "等轴测微缩景观 + 材质强对比（实心 vs 玻璃）+ 全息光栅光影 + 动态科技凝固",
+    "themes": {
+      "dark": {
+        "name": "Holo Dark",
+        "bg": "#060B19",
+        "primary": "#0055FF",
+        "accent": "#00FFFF",
+        "text": "#E9F1FF",
+        "scene": "监控大屏 / 长时间盯屏 / 环境光弱"
+      },
+      "light": {
+        "name": "Holo Light",
+        "bg": "#F0F4F8",
+        "primary": "#00D2FF",
+        "accent": "#9D4EDD",
+        "text": "#2B3A55",
+        "scene": "SaaS 后台 / 白天 / 需要打印"
+      },
+      "switch": "html[data-skin] + 顶栏圆形按钮 + localStorage；切主题必须重绘 canvas"
+    },
+    "color": "Radix Colors 9/10/11/12 梯度（MIT）— 9 填充 / 10 悬停 / 11 深底正文 / 12 高对比文字",
+    "spacing": "IBM Carbon spacing scale（Apache-2.0）— 2/4/8/12/16/24/32/40/48",
+    "radius": "4 / 8 / 12 px 三档 + pill",
+    "material": {
+      "card": "磨砂玻璃 10px blur + mask-composite 1px 全息渐变边",
+      "kpi": "6px blur（比卡片薄，浮在图表卡之上才有层次）",
+      "panel": "14px blur（侧栏 / 顶栏）",
+      "grid": "40px 等距网格 + radial mask 边缘淡出",
+      "scan": "顶栏 7.5s 横扫 + 整页 9s 纵掠，opacity ≤ 0.55"
+    },
+    "icons": {
+      "engine": "renderer/icons.py — 45° 等轴测（ry = rx/√3）",
+      "constraints": [
+        "双层底座（实体盘 + 全息环）",
+        "垂直光柱连接主体",
+        "悬浮几何碎片",
+        "环形能量波纹"
+      ],
+      "sizes": {
+        "38": "品牌位全量版",
+        "20": "导航降级版（主体放大、底座下移）"
+      },
+      "colors": "SVG 取 var(--token)，换主题自动跟随，不出两套图"
+    },
+    "a11y": "focus-visible 焦点环、prefers-reduced-motion、tabular-nums",
+    "tokens": "renderer/theme.py（单一来源）→ 注入 renderer/assets/parts/01_head.html 的 {{THEME_CSS}}",
+    "chartBridge": "p04_shell.js paint() + themeTokens() — 把 var(--token) 解析成 canvas 可用色值",
+    "docs": "references/visual-system.md"
+  },
+  "changes_2_7_0": [
+    "收入侧改为「单人上传凭证快照 + 录入记录留痕」，取消 v2.1 原定的「复核人 ≠ 录入人」双人复核：单机离线 Skill 没有多账号体系，第二个人往往是同一个人换个名字再点一次，形式合规、实质为零；而双人复核只证明「有人看过」，不证明「事后能还原当时录的是什么」",
+    "新增 hosts/commands/income_entry.py：add / confirm / edit / void / verify / list 六个子命令。add 强制带凭证（--snapshot 或 --snapshot-sha256），凭证复制进 config/vouchers/ 并记 SHA256；confirm 单人提交即入账；已入账字段锁定，改动必须先 --reopen；void 必须写原因",
+    "收入台账升级 v3：新增 id（INC-YYYYMMDD-NN）/ entered_at / snapshot / revisions，删除 reviewer；老数据读入时 reviewer 收进 legacy、裸 sha256 提升为 snapshot 对象，v2 台账无需手工迁移",
+    "留痕做哈希链：每次动作追加一行 config/income-entry-log.jsonl，prev_hash 串接上一条，verify 检出 LOG_CHAIN_BROKEN / LOG_TAMPERED；补录一条更早的记录必然断链",
+    "入账门槛可执行化：无凭证、凭证文件缺失、哈希不符三种情况一律拒绝 confirm，verify 报 NO_SNAPSHOT_INCOME / EVIDENCE_MISSING / EVIDENCE_TAMPERED，退出码 5",
+    "对账侧新增 incomeQuality：快照覆盖率（已附凭证）/ 可复算率（哈希一致）/ 留痕覆盖率 / 无凭证入账数 / 篡改数 / 缺失数，取代原「双人复核率」口径",
+    "流水页「任务ID」列改为「任务ID / 凭证」双语义：支出行显示 task_id，收入行显示 SNP + sha256 前 8 位 与留痕条数；状态列收入行改为 已入账 / 草稿 / 已退回（不再有「待复核」档）；风险项以 ⚠ 顶在卡片副标题最前面（nowrap 省略号截不掉）",
+    "P3 验收口径同步调整：原「收入双人复核率 100%」替换为「快照覆盖率 100% + 可复算率 100% + 无凭证入账 0 笔 + 留痕覆盖率 100%」",
+    "修掉 v2.1 重构残留：manifest 里 anomalies.json 的描述「可回收积分」改为「止损空间」，references 里同口径残留一并清理"
+  ],
+  "changes_2_8_0": [
+    "人工填的余额现在必须有截图佐证（落地 v2.1 §3.8 B4「人工余额也需截图留痕」）：新增 hosts/commands/balance_snapshot.py，add 不带 --shot 直接拒绝，凭证复制进 config/vouchers/ 并记 SHA256",
+    "余额凭证台账 config/balance-snapshots.jsonl 做哈希链：每次录入追加一条，prev_hash 串接上一条，verify 检出 CHAIN_BROKEN / LOG_TAMPERED / SHOT_TAMPERED / SHOT_MISSING，退出码 5",
+    "余额状态文件升 v3：新增 today_balance_snapshot 与 initial_source。前者把「这个数是从哪张图来的」绑进状态文件，后者区分 measured（实测）/ derived（反推）/ manual（裸填）",
+    "手改 today_balance 而不换凭证时，旧快照自动标 stale——不能拿 8 点那张图去背书 10 点改的数",
+    "快照时刻 ≠ 日初余额：截图只给「此刻余额」，日终对账要「当日日初」，两者差一个「00:00 到截图时刻的消耗」。balance_snapshot.py 用 --day-open 显式记下这个差值，不给就标 imputed=false 并按 B_SNAPSHOT 快照时点漂移呈现",
+    "修掉一个会把偏差算错的真问题：今日余额是**日初**值，此前被直接当成**日末**账户余额去和日结比，凭空差出一整天的消耗（10-26 那个 −1,221.67、10-29 那个 +71.41 都是这个根因）。现在折成「日初 − 当日消耗」再比，10-29 偏差从 +71.41 收敛到 −0.12（容差内）",
+    "报告呈现：日终对账页余额三口径下方新增「余额凭证」条（截图值 → 日初值 + SNP 哈希前 8 位 + 校验结论），总览页余额卡副标题加「反推✓ / 凭证✓」小徽标，两者 title 里带完整 SHA256 与文件路径",
+    "初始积分改为可溯源：由 1,651.16 起算（由实测余额逐日反推，assumed 窗口内无未登记收入），报告标「起点 10-26 · 反推」，不再使用原先的示例值 10,000"
+  ],
+  "architecture": {
+    "pattern": "Core + Adapter + Renderer，hosts 为发布形态壳",
+    "layers": {
+      "core": {
+        "path": "core/",
+        "role": "领域内核：ports / models / policy / pipeline / calc",
+        "may_import": [],
+        "note": "不 import adapters/renderer/hosts，不读文件（凭证哈希校验走可注入 resolver）"
+      },
+      "adapters": {
+        "path": "adapters/",
+        "role": "数据与存储：workbuddy 日志源、目录发现、沙箱、Store、余额状态",
+        "may_import": [
+          "core"
+        ],
+        "note": "新增平台 = 新增一个实现 LogSource 的目录"
+      },
+      "renderer": {
+        "path": "renderer/",
+        "role": "产物：theme / icons / payload / html / data / docs",
+        "may_import": [],
+        "note": "只吃 dict；不 import core，故可脱离分析单独测试"
+      },
+      "hosts": {
+        "path": "hosts/",
+        "role": "四种壳：cli / skill / desktop / plugin / web",
+        "may_import": [
+          "core",
+          "adapters",
+          "renderer"
+        ],
+        "note": "唯一可以读 argv / 环境变量 / stdin / 监听端口 / 弹浏览器的一层"
+      }
+    },
+    "invariants": [
+      "TC-32 静态扫描 import，反向依赖即失败",
+      "TC-33 四形态产物齐全且不含个人数据",
+      "TC-34 假数据源 + 内存 Store 驱动 Pipeline，证明 ports 可替换",
+      "hosts/commands/ 命令数不缩水（≥20）且 audit.py 在位；不存在转发壳"
+    ],
+    "docs": "references/architecture.md"
+  },
+  "changes_3_0_0": [
+    "分层重构：Core（core/）+ Adapter（adapters/）+ Renderer（renderer/）+ Host（hosts/），依赖方向单向，由 TC-32 静态扫描守住",
+    "唯一编排：core/pipeline.py 接管原 audit.py 第 4–11 步；audit.py 退化为 CLI 壳，退出码/打印/授权/审计日志仍留在 hosts/cli.py",
+    "策略与存储拆分：core/policy.py 只做阈值/级别/凭证状态判定，adapters/state.py 只做读写",
+    "ports 落地：LogSource / Store / Clock / Notifier 四个 Protocol；TC-34 用假数据源 + 内存 Store 驱动 Pipeline，证明 Core 不偷读盘",
+    "四形态发布：publish.py --target all 产出 dist/{skill,desktop,plugin,web} + publish-manifest.json；发布包不含个人金额与凭证截图（TC-33 扫描）",
+    "插件形态：MCP 兼容 stdio server（initialize / tools/list / tools/call），注册 audit_run / audit_budget / audit_explain 三个工具",
+    "视觉重构：设计令牌迁到 renderer/theme.py，Holo Dark / Holo Light 双主题，顶栏圆形按钮实时切换（写 localStorage，切主题重绘 canvas）",
+    "材质层：磨砂玻璃卡（按元件分档 blur）+ mask-composite 1px 全息渐变边 + 40px 等距网格 + 双层扫描线 + 呼吸光晕（全页 ≤3 处）",
+    "3D 图标引擎：renderer/icons.py 生成 45° 等轴测、双层底座、垂直光柱、悬浮碎片的 SVG；38px 品牌位全量版 / 20px 导航降级版",
+    "色值令牌化：111 处 rgba 硬编码收敛为 --ink / --pri 分量令牌，深浅主题共用一套布局（01_head.html 里一行颜色都不写）",
+    "兼容层：v3.0 曾在 scripts/ 下留 12 个转发壳以保证旧命令可用（v3.2 已整体迁入 hosts/commands/ 并删除壳）",
+    "文档：新增 references/architecture.md（分层契约 / 扩展路径 / 迁移说明）与 references/visual-system.md（视觉规范工程落地版）"
+  ],
+  "changes_3_1_0": {
+    "title": "信息架构重构：四个一级菜单 + 八个二级菜单",
+    "items": [
+      "导航从「四个平级视图」改为「四个一级菜单 + 八个二级菜单」，子菜单常驻显示（不做悬浮弹层），路由为 #page/sub，支持三级容错与前进/后退",
+      "监控审计舱：今日动态（日初结转 / 当前可用 / 今日消耗 / 今日收入 + 小时级实时曲线 + 三类不可见执行入口）、周期动态（月 / 季 / 年切换）、对账审计分析（偏差与风险各带下钻）、告警待办，四板块 2×2 一屏",
+      "对账中心：今日收支流水、任务消耗明细（十列主表 + 点行就地展开执行明细十二列，独立分页与导出）、T+1 日终对账、对账台簿（周期图表 + 台账 + 状态分段）",
+      "审计控制：执行监测（异常置顶）、任务设置（定时/预警任务、schtasks / crontab 文本、脚本导入与编辑）、收入配置（人工录入 + 快照 SHA-256 + 留痕 + 数据源 API）、回收调整（处置流 + 补偿预留位）",
+      "运营分析：新增「运行模式」（纯推理 / 工具链 / 重试补跑）与「模型运行情况」两张全景，建议由数据条件触发；保留单层级性价比、分级路由与三档建议",
+      "列表统一分页每页 10 行（页码折叠），七处导出均为筛选后全量 CSV",
+      "口径修正：结转总额取区间首日日初；逐步积分缺失时显示「—」并附说明；模型积分改从 bench.totalCredits 汇总（避免单价未上报的模型被算成 0）",
+      "图表配色统一走 varrgb() 解析分量令牌，修复 canvas 无法解析 rgba(var(--x)) 导致的 addColorStop 报错",
+      "验收：TC-23 / TC-24 / TC-26 重写为新结构断言，新增 TC-35（明细下钻与逐步积分口径）、TC-36（运营分析双维度），共 36 项全部通过"
+    ]
+  },
+  "changes_3_2_0": {
+    "title": "目录即分层 · 桌面版一键安装 · 全站一屏",
+    "items": [
+      "目录即分层：scripts/ 整体并入 hosts/commands/（21 条命令，一条一个文件，python -m hosts.commands.<名> 调用），assets/ 并入 renderer/assets/，tools/package.py 移到 deploy/package.py，浏览器探针移到 tests/tools/。四层边界不再只写在文档里，看目录就能判断一个文件属于哪一层",
+      "删除全部转发壳：v3.0 为兼容旧调用点在 scripts/ 下留的 12 个 `from core.calc.x import *` 壳一并移除。壳本身是一份需要维护的路径映射，改一次层深要改 21 个文件；现在路径即模块。TC-32 判据同步换成「依赖方向 + 命令数 ≥20 且 audit.py 在位」",
+      "平台更名「积分对账审计应用」：页面标题、侧栏品牌、桌面窗口标题、安装包 DisplayName、注册表卸载项、各形态 README 首行统一；仅保留 Skill 标识名 workbuddy-cost-audit（包名不能带中文）",
+      "侧栏信息块换语义：原「窗口内积分 / 当前余额 / 积分告警 / 采集时间说明」改为「工具类型 / 版本 / 用户名」，分别取 meta.sources[].tool、meta.appVersion + 客户端版本、meta.user。金额与告警本就出现在监控审计舱与对账中心，同一数在三处出现必然改一处忘一处",
+      "全站一屏：PAGES[*].fit 全部置 true，审计控制·执行监测（六行 grid）、回收调整（六行 grid + 右列双行）、运营分析（两列四行 grid）改为定高布局，长表在卡片内部滚动，整页不再上下滚动",
+      "二级菜单可折叠：一级菜单右侧 caret 是独立命中区（点箭头只折叠、不跳页），折叠状态存 localStorage['wbc-nav-collapsed']，路由进入某组时自动展开该组",
+      "删除「T 日 / 10-29 / T-1 …」日期胶囊条：它与筛选栏的区间控件重复表达同一字段，两套入口控制同一样东西、状态必然对不上。删除后 credRange() 成为唯一时间口径，不填区间即「今天那一段」",
+      "桌面版轻量本地存储 adapters/local_store.py：配置进 SQLite 单文件（kv / income / runs 三表），产物落 out/ 目录，种子配置读包内 config/ 且「库里优先」；默认 %LOCALAPPDATA%\\CostAudit\\data\\cost-audit.db，COST_AUDIT_HOME 可重定向为便携模式",
+      "桌面版原生窗口 hosts/desktop_app.py：tkinter 单窗，含采集状态行、余额设置（初始积分 / 今日余额 / 保存并重算）、打开报告 / 重新采集 / 数据目录 / 退出四个动作，不依赖浏览器也不监听端口",
+      "Windows 一键安装包 deploy/windows/：build_win.py 两次 PyInstaller（主程序 onefile + 安装向导）并产出便携 zip 与 SHA256SUMS；installer_app.py 装到 %LOCALAPPDATA%\\Programs\\CostAudit，PrivilegesRequired=lowest 不弹 UAC，建开始菜单/桌面快捷方式并写 HKCU 卸载项，卸载时询问是否同时删除本地数据；make_icon.py 用 zlib + struct 纯标准库生成五档尺寸 ICO；另附行为对齐的 installer.iss（Inno Setup 6，可选路径）",
+      "四形态部署文档进 deploy/：README.md 为总览（四形态对照、目录全树、公共前置、数据存放差异、升级回滚），forms/{skill,desktop,plugin,web}.md 各自给前置检查、部署步骤、参数、升级、卸载、排错表；publish.py 把对应形态的文档一并复制进 dist/<形态>/",
+      "构建链自检：check_python() 预检构建解释器必须同时具备 PyInstaller 与 tkinter（精简版 Python 打出的 exe 会因 ImportError 静默退回控制台），支持 --python 指定解释器",
+      "验收：TC-32 改为扫描 hosts/commands/ 命令数；测试与文档中全部 scripts/ · assets/ · tools/ 路径引用同步到新目录"
+    ]
+  },
+  "changes_3_3_0": {
+    "title": "四个二级页从「只读展示」改为「可操作且留痕」",
+    "items": [
+      "收入配置·人工录入：日期默认为当天（todayISO()），来源固定四类「购买 / 签到领取 / 任务领取 / 其他」，不再让人自由填类型——自由文本会让后面的账实比对失去同一口径",
+      "收入配置·留痕改造：原「生成录入命令 / 导出收入 json」两个按钮撤掉，改为「记录留痕（比对后入链）」+「导出留痕包」。留痕不是导出个 JSON 自行保管——一条裸 JSON 改一个数字没人看得出来。现在每条记录含 prev_hash / hash（hash = SHA-256(prev + \\u0002 + canon(r))，canon 固定字段顺序），icVerifyChain() 逐条复算并返回第一处断点而不是只说「有问题」",
+      "收入配置·比对口径：比「同一天是否存在同一笔」（容差 0.005），不是「当日合计相等」——一天可能多笔，单笔对合计永远对不上。对不上时附带当日结转证据（账面收入 / 日耗 / 余额 open → close）。比对结论在录入当时冻结进记录（cmp 字段），不允许事后重算：允许事后重算等于允许事后改结论",
+      "执行监测·删四块：「消耗构成」「四类不可见执行」「技能·子代理调用」「隐藏调用明细」四张卡片全部撤掉，页面只剩「异常 → 执行记录」两件事，空间重新分配（横幅 / 指标+配置 / 异常 / 记录伸缩 / 脚注）",
+      "执行监测·顶栏重排：四个统计指标卡改 2×2 与右侧「定时任务配置」卡同一行，外层 grid + align-items:stretch、内层 flex 居中，等高与垂直居中靠布局而不是估像素",
+      "执行监测·五页签 + 行内下钻：执行记录分「全部 / 定时任务执行 / 后台自动化 / 技能·子代理链 / 隐藏调用明细」五页签，每页 10 行带分页（data-exp）；点行开「执行明细」弹窗（概览 8 格 + 技能链 + 隐藏调用）。技能链按调用载体（Skill / DeferExecuteTool / Agent / Task / TaskOutput / mcp__*）聚合，子技能名日志里没落库时明写「子技能名未上报」——审计场景里「不知道」必须是可显示的结论",
+      "执行监测·隐藏调用独立粒度：隐藏调用不产生任务，与执行记录不是同一粒度，做成页签而非并排卡片（并排会让人以为是同一张表的另一半）；该页签用 6 列独立表，行 data-exh 点开有独立明细弹窗",
+      "任务设置·弹窗化：列表标题栏右侧新增「新建任务」，弹出编辑窗口（任务名称 / 任务类型 / 触发规则 / 任务控制启用·关闭 / 任务描述），行内「编辑」复用同一弹窗，不再有常驻编辑板块",
+      "任务设置·操作列增强：新增「删除」（window.confirm 二次确认）与启停开关（button.switch），本机新建的行带 is-custom 标记",
+      "任务设置·修一处真源重复：本机新建的任务原被 taskModalSave 写入 edit[id] 覆盖层，而 tsAllRows 优先读 custom 原值，导致编辑「每周五 08:30」保存后仍显示 08:30。改为本机新建整条替换 custom 中那条——同一个任务不能有两处真源，否则改完还得先想「哪份生效」",
+      "回收调整·删板块：「规则影响积分构成」卡与 mountAnomalyCharts() 一并删除，p06_recon.js 的 renderLedgerAnomaly() 同步去掉该调用",
+      "回收调整·等高 10 行：异常事件列表固定 10 行、每页 10 行带分页（data-anp），行高与左列引擎等高、垂直居中。原 tbody td 的 8px 上下内边距把 30px 行撑到 46px 导致第 10 行被切，改 4px 后 scrollOver=0、rowH=28",
+      "回收调整·更名 + 联动：左列「规则引擎」更名「审计引擎」——它不生成规则，只按规则判定与筛选；规则卡变成可点筛选器（data-rule / role=button，左侧 2px 竖条示选中），点一下右侧只剩命中该规则的事件，再点取消。筛选在 slice(0,60) 之前生效，且同时认 ruleIds 与规则中文名（原先只认一个，导致点「重试风暴」筛出 0 条）",
+      "回收调整·补偿申请缩为一行：它是一句「为什么现在不做」的说明，占一张卡会把事件列表挤到比左侧引擎矮，破坏左右等高；改为卡片脚 .rsv-line 并保留 rsv-card 类名",
+      "验收：新增 TC-37（收入留痕入链 / 执行记录五页签下钻 / 任务设置弹窗化 / 审计引擎联动），共 37 项全部通过；README 页面能力表与 references/report-template.md 的执行监测、任务设置、收入配置、回收调整四行同步重写"
+    ]
+  },
+  "changes_3_4_0": {
+    "title": "每日取数任务进入「任务设置」，从「给你一条命令」变成「系统里真在跑」",
+    "items": [
+      "新增 config/schedule.json 作为「既定时间」的唯一真源：页面、--install、--print-schedule、打包脚本都读它。在这之前时间散在代码默认值、页面输入框和文档示例三处，改一处另两处不知道",
+      "任务设置列表首行固定为「每日积分取数与日账」，带「系统任务」标记：它不是 Agent 的任务，是操作系统按点拉起的进程，混进 SCHED.items 会把「任务执行统计」的口径带歪，所以单列一层（payload.dailyCredit）",
+      "三份真相并排，缺哪份写 None：config/schedule.json 是「打算几点跑」、out/schedule-state.json 是「系统里实际注册成什么」、out/credit-daily.jsonl 是「真跑过几天」。之前只显示其中一份，用户永远不知道自己看的是意图还是事实",
+      "注册状态做成三态（已注册 / 未注册 / 未探测）。「没探测过」和「没注册」是两个结论，前者用 --status 补，后者要 --install；都显示成「未注册」会让人重复安装",
+      "注册改走 Register-ScheduledTask（编码执行的 PowerShell），失败退回 schtasks：schtasks 没有工作目录参数，任务启动在 C:\\Windows\\System32，脚本里 --out out 会解析到那儿——跑完不报错、只是什么都没写。这是本轮最容易踩的坑",
+      "计划任务改用 pythonw.exe 起进程，不再弹黑框。代价是 stdout 没了，所以 daily_credit 增加 --log（Tee 到 out/daily_credit.log），并把 traceback 也写进日志：计划任务里 stderr 没有去处，异常等于消失",
+      "解释器选择避开名字带 .old 的目录——那是版本升级留下的备份副本，清理磁盘时第一个被删；把任务钉在那种路径上，今天能跑、清理完静默失败",
+      "修 split_task：Get-ScheduledTask 的 -TaskName 只认叶子名，整串「CostAudit\\DailyCredit」会被判成「不存在」——注册明明成功、查询却说没有，这种自相矛盾最难查",
+      "弹窗里改触发规则会同步改写注册命令（tsRetime）。不改的话用户改完 10:30 点复制，粘贴出来还是 09:05，然后以为系统不听话",
+      "系统任务行不提供删除与启停开关，改为「编辑 + 复制命令」：离线单文件没法去改系统任务，给个开关就是骗人；真停用请到任务计划程序里做，页面把这句话写在弹窗里",
+      "修表头被截断：fitTableColumns 的下限只算了文字宽，没算 letter-spacing（表头是 .05em + 大写），「执行次数 / 消耗积分」被削成「执行…」「消耗…」。截断发生在表头上比截断数字更让人看不懂",
+      "验收：新增 TC-39（配置唯一真源 / 三态不冒充 / 缺口按天列出 / 注册命令挂批处理 / 页面行与复制命令），共 39 项全部通过",
+      "文档：deploy/schedule/README.md 重写（真源、注册通道、日志、排错），README 与 references/report-template.md 的任务设置行、SKILL.md 模式 E 同步"
+    ]
+  },
+  "changes_3_4_1": {
+    "title": "任务设置：三件操作对每一行一视同仁，开关改的不只是颜色",
+    "items": [
+      "Skill 形态的 html 参数此前只有一半生效：skill.json 与 DEPLOY.md 都写着 `--input '{\"html\": true}'`，但 main() 只认命令行 `--html`，payload 里的 html 被忽略。照文档调用的人拿到 `artifacts: []`，看不出是没生成还是路径不对。改为两个入口都认，并在注释里写明为什么（Agent 只会传 JSON，不会拼命令行参数）",
+      "操作列统一为「编辑 / 删除 / 启停」三件，每一行同一套图标按钮（内联 SVG，12px，语义色 hover）。上一版系统任务行只给「编辑 + 复制命令」，删除了删除与开关——理由是离线单文件动不了系统任务。这个理由只对了一半：动不了，但可以把动作交出去（卸载命令、同步命令），少画一个按钮只会让人以为漏做了",
+      "系统任务的「删除」给的是卸载命令而不是把行藏起来：藏掉一个还在系统里按点跑的任务，是审计报告最不该干的事。window.confirm 说明两种意图（只想别跑 / 彻底删掉），确定后复制 --uninstall",
+      "编辑弹窗合并成一套：taskStateHTML 取代 dcModalHTML，系统任务与定时 / 预警任务都是「基本信息 → 运行状态 → 运行脚本 → 注册为系统任务 →（系统任务多一段）启停同步 → 生效说明」。上一版普通任务点开是一片空白，同一个列表点出两种弹窗，看的人要先判断「这条为什么少几行」",
+      "运行状态六行同构：运行位置 / 注册状态 / 解释器·脚本 / 上次执行 / 下次执行 / 执行·消耗。普通任务写「本机配置（随报告打开即生效，不注册系统任务）」「未指定（沿用默认采集脚本）」「不适用（无系统触发器）」——空着不是一致，写清楚才是",
+      "启停真的生效：daily_credit 增加 --enable / --disable，一条命令同时改 config/schedule.json、同步任务计划程序（Enable-/Disable-ScheduledTask，失败退 schtasks /Change）、回写 out/schedule-state.json。三个动作绑在一条命令里，拆开让用户分别执行，中间漏一条就是「配置说停了、系统还在跑」",
+      "顺序不能反：先写配置再动系统。先动系统的话，中途失败就变成「系统停了、配置还说开着」，两边都说不清哪个是对的",
+      "write_plan_enabled 只改 tasks[0].enabled，其它键原样保留（含 _comment）。整份重排一遍字段顺序，事后就看不出「到底改了哪儿」",
+      "系统口径三态：state 为空 → sysEnabled = None。答「已停用」和答「已启用」一样是在编；只有 Ready / Running 判开、Disabled 判关",
+      "口径不一致时状态列不再并排两个标签（会让人以为其中一个是历史值），换成一个「待同步」，title 说明系统那边到底是什么",
+      "点开关就弹出同步弹窗：页面口径、系统口径、执行后效果、命令、复制 / 下载 .bat。不丢一句「已停用」让人以为已经完事——这是上一版最实质的问题：开关看着能点，点了什么也没发生",
+      "状态列与弹窗里的命令都由后端 schedule.py 的 cmds 给，前端不拼字符串。前端拼一份、CLI 再演化出别的参数，页面上写的就会是一条跑不通的命令",
+      "弹窗里改「任务控制」开关，同步命令跟着换（tmOn change 联动）。停在「停用」却给出启用命令，是那种照着做也不会报错的错——只是做了相反的事",
+      "停用行加整行标识（tr.is-off）：列表里「哪条不跑」要能扫出来，而不是逐个读状态标签",
+      "启停联动 KPI 与筛选：停用后「启用中」减一、筛选「禁用」能筛到——这条本来就有，但系统任务行没有开关，等于五个任务里唯一真正在跑的那个管不了",
+      "验收：新增 TC-40（三件同款 / 三态 sysEnabled / 写回只动 enabled / 弹窗同构 / 待同步 / 停用行标识），TC-39 里「页面可复制命令」改为钉「操作列不再给系统任务开旁路」，共 40 项全部通过",
+      "文档：README 任务设置段与 deploy/schedule/README.md 补 --enable / --disable 用法；manifest 升 3.4.1"
+    ]
+  }
+}

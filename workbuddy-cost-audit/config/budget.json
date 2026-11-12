@@ -1,0 +1,15 @@
+{
+  "credit_ledger_paths": [],
+  "baseline_balance": null,
+  "baseline_time": null,
+  "reconcile_tolerance_pct": 5,
+  "model_switch": {
+    "window_days": 3,
+    "note": "切换后 3 日消耗对比切换前 3 日日均；仅为风险信号，不计入止损空间统计"
+  },
+  "rate_alert": {
+    "threshold_pct": 50,
+    "note": "近 3 日实测日均较前 7 日高出 50% 时提示速率异常（只描述已发生的变化，不做外推）"
+  },
+  "note": "余额与阈值不放在本文件：写在 config/balance-state.json（用 balance_watch.py --set-* 维护）。本文件只保留对账容差与风险判定参数；baseline_balance 仅作兼容回退，为空时报告为 L4。"
+}

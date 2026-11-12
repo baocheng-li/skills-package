@@ -1,0 +1,18 @@
+{
+ "version": 3,
+ "initial_credits": null,
+ "initial_date": null,
+ "initial_set_at": null,
+ "initial_source": null,
+ "today_balance": null,
+ "today_balance_date": null,
+ "today_balance_set_at": null,
+ "today_balance_snapshot": null,
+ "thresholds": {
+  "mode": "pct",
+  "warn": 10.0,
+  "crit": 20.0,
+  "red": 30.0
+ },
+ "updated_at": null
+}

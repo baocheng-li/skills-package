@@ -1,0 +1,17 @@
+{
+  "version": "1.0.0",
+  "effective_date": "2026-10-01",
+  "rate_unit": "credits_per_1k_tokens",
+  "note": "仅当客户端未上报 credit 时用于折算。rate 取本机实测均值，更新后历史积分不追溯。",
+  "models": {
+    "deepseek-v4.1-flash": {"input": 0.00052, "output": 0.00208},
+    "deepseek-v4-flash": {"input": 0.00052, "output": 0.00208},
+    "fast-model": {"input": 0.00294, "output": 0.01176},
+    "glm-5.3": {"input": 0.00720, "output": 0.02880},
+    "glm-5.3-flash": {"input": 0.00120, "output": 0.00480},
+    "hy3": {"input": 0.00150, "output": 0.00600},
+    "minimax-m3": {"input": 0.00300, "output": 0.01200},
+    "kimi-k2.7": {"input": 0.00220, "output": 0.00880}
+  },
+  "default": {"input": 0.00200, "output": 0.00800}
+}

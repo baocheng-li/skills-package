@@ -1,0 +1,15 @@
+{
+  "name": "workbuddy-cost-audit",
+  "version": "3.4.1",
+  "description": "积分对账审计应用：只读采集 WorkBuddy / CodeBuddy 的积分与 Token 流水，离线报告、余额三口径、T+1 日终对账、单人快照留痕。",
+  "entry": "python -m hosts.skill",
+  "input": {
+    "last": "7d",
+    "days": 0,
+    "project": null,
+    "html": false
+  },
+  "output": "json",
+  "readonly": true,
+  "offline": true
+}

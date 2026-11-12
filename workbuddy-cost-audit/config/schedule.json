@@ -1,0 +1,19 @@
+{
+  "_comment": "系统计划任务的唯一真源。页面、daily_credit 命令、打包脚本都读这一份，避免「页面上写 09:05、实际注册 08:00」这种两处各说一套。改时间只改这里，再跑一次 --install。",
+  "version": 1,
+  "tasks": [
+    {
+      "id": "daily-credit",
+      "name": "每日积分取数与日账",
+      "type": "sched",
+      "enabled": true,
+      "at": "09:05",
+      "systemTask": "CostAudit\\DailyCredit",
+      "module": "hosts.commands.daily_credit",
+      "args": "--out out --format html --quiet --log out/daily_credit.log",
+      "script": "deploy/schedule/daily_credit.bat",
+      "scriptUnix": "deploy/schedule/daily_credit.sh",
+      "desc": "每天按点读一次本机积分消耗，写一行日账到 out/credit-daily.jsonl 并重刷报告；只读本地日志，不联网、不唤醒 WorkBuddy、不消耗积分"
+    }
+  ]
+}

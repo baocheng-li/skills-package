@@ -1,0 +1,128 @@
+    <body>
+<!-- 三层背景：网格（结构）→ 光斑（氛围）→ 扫描带（动效）。
+     都是 position:fixed + pointer-events:none，不参与任何布局计算，
+     所以「一屏不滚动」的版面约束不会被它们破坏。 -->
+<div class="holo-grid"></div>
+<div class="holo-aura"></div>
+<div class="holo-scan"></div>
+
+<div id="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">{{ICON:brand}}</div>
+      <div class="brand-txt"><b>积分对账审计应用</b><span>Audit Console</span></div>
+    </div>
+
+    <!-- 一级菜单四项；带二级的两项在激活时自动展开子菜单。
+         子菜单不做悬浮弹层，而是就地展开：审计场景里人要能一眼看到自己
+         在哪一层，弹层会把位置信息藏起来。 -->
+    <div class="nav-group">
+      <div class="nav-label">全息审计</div>
+
+      <div class="nav-item" data-page="cockpit">
+        {{ICON:cockpit}}
+        监控审计舱
+      </div>
+
+      <div class="nav-item nav-has-sub" data-page="recon" data-sub="flow" data-group="recon">
+        {{ICON:recon}}
+        对账中心
+        <span class="n-badge" id="nbAnom">0</span>
+        <i class="nav-caret" data-caret="recon" role="button" tabindex="0"
+           title="收起 / 展开二级菜单" aria-label="收起或展开对账中心"></i>
+      </div>
+      <div class="nav-sub" data-parent="recon">
+        <div class="nav-subitem" data-page="recon" data-sub="flow">今日收支流水</div>
+        <div class="nav-subitem" data-page="recon" data-sub="expense">任务消耗明细</div>
+        <div class="nav-subitem" data-page="recon" data-sub="daily">T+1 日终对账</div>
+        <div class="nav-subitem" data-page="recon" data-sub="book">对账台簿</div>
+      </div>
+
+      <div class="nav-item nav-has-sub" data-page="control" data-sub="exec" data-group="control">
+        {{ICON:control}}
+        审计控制
+        <span class="n-badge" id="nbMon">0</span>
+        <i class="nav-caret" data-caret="control" role="button" tabindex="0"
+           title="收起 / 展开二级菜单" aria-label="收起或展开审计控制"></i>
+      </div>
+      <div class="nav-sub" data-parent="control">
+        <div class="nav-subitem" data-page="control" data-sub="exec">执行监测</div>
+        <div class="nav-subitem" data-page="control" data-sub="task">任务设置</div>
+        <div class="nav-subitem" data-page="control" data-sub="income">收入配置</div>
+        <div class="nav-subitem" data-page="control" data-sub="recycle">回收调整</div>
+      </div>
+
+      <div class="nav-item" data-page="analysis">
+        {{ICON:analysis}}
+        运营分析
+      </div>
+    </div>
+
+    <!-- 侧栏底部：这里回答「这份报告是谁、用什么工具、什么版本跑的」。
+         金额与告警不放在这——它们已经在对账中心的 T+1 页与审计舱首页，
+         同一个数在两处出现，改一处忘一处就会自相矛盾。 -->
+    <div class="side-foot">
+      <div class="row"><span>工具类型</span><b id="sfTool">—</b></div>
+      <div class="row"><span>版本</span><b id="sfVer">—</b></div>
+      <div class="row"><span>用户名</span><b id="sfUser">—</b></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="tb-head">
+        <div class="tb-title" id="tbTitle">监控审计舱</div>
+        <span class="pill live"><span class="dot"></span>本机只读数据</span>
+      </div>
+      <div class="tb-right">
+        <span class="tb-stamp" id="tbStamp">—</span>
+        <button class="skin-tgl" id="skinTgl" type="button"
+                title="切换深色 / 浅色全息主题" aria-label="切换主题">
+          <svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+            <circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v2.4M12 19v2.4M2.6 12h2.4M19 12h2.4M5.3 5.3l1.7 1.7M17 17l1.7 1.7M18.7 5.3L17 7M7 17l-1.7 1.7" stroke-linecap="round"/>
+          </svg>
+          <svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+            <path d="M20 14.2A8.4 8.4 0 0 1 9.8 4a8.6 8.6 0 1 0 10.2 10.2Z" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button class="btn" id="btnRefresh" title="重算并重绘所有页面的监测数据">数据更新</button>
+        <button class="btn" id="btnExport">导出说明</button>
+      </div>
+    </div>
+    <div class="view-wrap" id="viewWrap">
+      <div class="view on" id="v-cockpit"></div>
+      <div class="view" id="v-recon"></div>
+      <div class="view" id="v-control-exec"></div>
+      <div class="view" id="v-control-task"></div>
+      <div class="view" id="v-control-income"></div>
+      <div class="view" id="v-control-recycle"></div>
+      <div class="view" id="v-analysis"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-mask" id="cfgMask"></div>
+<div class="modal" id="cfgModal" role="dialog" aria-label="定时更新任务配置">
+  <div class="modal-hd">
+    <div style="min-width:0">
+      <h3>定时更新监测数据 · 任务配置</h3>
+      <div class="sub">配置由谁、多久、在什么时候重跑一次采集，让报告数据保持最新</div>
+    </div>
+    <button class="drawer-close" id="cfgClose">×</button>
+  </div>
+  <div class="modal-bd" id="cfgBody"></div>
+  <div class="modal-ft" id="cfgFoot"></div>
+</div>
+
+<div class="drawer-mask" id="mask"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-hd">
+    <div style="min-width:0">
+      <h3 id="drTitle">任务详情</h3>
+      <div class="sub" id="drSub"></div>
+    </div>
+    <button class="drawer-close" id="drClose">×</button>
+  </div>
+  <div class="drawer-bd" id="drBody"></div>
+</div>
+

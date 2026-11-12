@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<!--
+  积分与 Token 消耗审计 · 自包含报告模板
+  ================================================================
+  占位符协议（由 scripts/render_report.py 单次替换，无循环、无条件、无 Jinja 运行时）：
+  模板中共 5 个占位符，均为双花括号包裹的大写名字，按文件顺序出现：
+
+    1. STYLE      ← assets/parts/01_head.html（<!DOCTYPE> 到 </head> 的完整头部与内联样式）
+    2. BODY       ← assets/parts/02_body.html（含 body 开标签的全部静态结构）
+    3. DATA_JSON  ← 已压缩并转义的数据负载（</ 已替换为 <\/，可安全内嵌）
+    4. ECHARTS    ← assets/libs/echarts.min.js 全文（内联，杜绝 CDN）
+    5. SCRIPTS    ← assets/parts 下 10 个视图脚本按序拼接
+
+  注意：本注释内不得出现占位符的完整字面量，否则会被替换器先命中而漏替换真实占位符。
+
+  设计约束（违反即视为缺陷）：
+    1. 单文件、零外链：不出现 http(s)://、不出现 <img src>、不出现 <link href>；
+    2. 断网可用：图表库与数据全部内联；
+    3. 无服务端：双击 file:// 打开即可运行，不需要任何本地端口；
+    4. 数据只读：页面不发起任何请求，导出走 Blob + download。
+  ================================================================
+-->
+{{STYLE}}
+{{BODY}}
+<script>window.WBC_DATA={{DATA_JSON}};</script>
+<script>
+{{ECHARTS}}
+</script>
+<script>
+{{SCRIPTS}}
+</script>
+</body>
+</html>

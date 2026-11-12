@@ -1,0 +1,4 @@
+{"ts":"2026-10-20T00:00:00Z","type":"grant","amount":60000,"balance_after":60000,"task_id":null}
+{"ts":"2026-10-24T10:12:00Z","type":"consume","amount":-248.4,"balance_after":59751.6,"task_id":"tk_01a1444f"}
+{"ts":"2026-10-25T14:32:00Z","type":"consume","amount":-13.4,"balance_after":59738.2,"task_id":"tk_01a170d0"}
+{"ts":"2026-10-26T09:05:00Z","type":"refund","amount":50,"balance_after":59788.2,"task_id":null}

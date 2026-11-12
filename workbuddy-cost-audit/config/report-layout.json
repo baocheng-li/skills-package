@@ -1,0 +1,15 @@
+{
+  "tabs": [
+    {"id": "overview", "label": "监控总览", "feature": "F2"},
+    {"id": "explore", "label": "分类检索", "feature": "F1"},
+    {"id": "ledger", "label": "消耗台账", "feature": "F3"},
+    {"id": "automation", "label": "定时任务", "feature": "F4"},
+    {"id": "anomaly", "label": "异常分析", "feature": "F5"},
+    {"id": "budget", "label": "积分预警", "feature": "F6"},
+    {"id": "benchmark", "label": "对比建议", "feature": "F7"}
+  ],
+  "sections": [
+    "warning_banner", "kpi", "trend", "distribution", "model_mix",
+    "top_tasks", "anomaly_digest", "data_source"
+  ]
+}

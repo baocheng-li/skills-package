@@ -1,0 +1,44 @@
+{
+  "RETRY_STORM": {
+    "enabled": true,
+    "task_retry_sum": 5,
+    "same_tool_consecutive_fail": 3,
+    "advice": "检查工具 {tool} 的鉴权、路径与网络配置，减少无效重试"
+  },
+  "CONTEXT_BLOAT": {
+    "enabled": true,
+    "single_step_input_tokens": 100000,
+    "advice": "对长任务启用阶段性上下文压缩与工具结果摘要回填"
+  },
+  "TOOL_LOOP": {
+    "enabled": true,
+    "repeat_threshold": 3,
+    "require_same_args": true,
+    "advice": "工具 {tool} 以相同参数重复调用，检查规划逻辑与终止条件"
+  },
+  "TASK_CREDIT_SPIKE": {
+    "enabled": true,
+    "p95_multiplier": 2,
+    "advice": "单任务消耗显著高于同类型 P95，评估任务拆分或分阶段交付"
+  },
+  "SCHEDULED_SPIKE": {
+    "enabled": true,
+    "mean_multiplier": 3,
+    "advice": "定时任务单次消耗异常，检查数据源规模变化与抓取范围"
+  },
+  "MODEL_SWITCH": {
+    "enabled": true,
+    "advice": "任务内发生模型切换，核对是否由余额不足触发降级，必要时锁定关键任务模型"
+  },
+  "FAILED_BURN": {
+    "enabled": true,
+    "credits_threshold": 10000,
+    "advice": "失败任务仍产生高额消耗，建议失败前置校验与预算上限"
+  },
+  "CACHE_MISS": {
+    "enabled": true,
+    "hit_rate_threshold": 0.3,
+    "min_input_tokens": 50000,
+    "advice": "缓存命中率偏低且输入量高，检查前缀稳定性与缓存失效原因"
+  }
+}

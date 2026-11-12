@@ -1,0 +1,72 @@
+{
+  "_readme": [
+    "v3 收入台账结构示例（仅作字段说明，不要直接覆盖 config/credit-income.json）。",
+    "真实录入请走 hosts/commands/income_entry.py：它会复制凭证、算 SHA256、写留痕日志。",
+    "注意两条示例的区别：第一条凭证齐全（可入账），第二条是草稿且没附快照（不可入账）。"
+  ],
+  "version": 3,
+  "entries": [
+    {
+      "id": "INC-20261029-01",
+      "date": "2026-10-29",
+      "type": "recharge",
+      "amount": 100.0,
+      "biz_no": "RECHG-20261029-001",
+      "note": "临时购买 100 积分",
+      "entered_by": "张三",
+      "entered_at": "2026-10-29T09:12:03+08:00",
+      "status": "confirmed",
+      "snapshot": {
+        "file": "vouchers/INC-20261029-01-b4dfe20b.png",
+        "sha256": "b4dfe20b5697c0a1e7d3f2a6c8b9d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5",
+        "bytes": 48213,
+        "taken_at": "2026-10-29T09:10:11+08:00"
+      },
+      "revisions": [
+        {
+          "at": "2026-10-29T09:12:03+08:00",
+          "by": "张三",
+          "action": "CREATE",
+          "before": null,
+          "after": { "amount": 100.0, "status": "draft" }
+        },
+        {
+          "at": "2026-10-29T09:12:40+08:00",
+          "by": "张三",
+          "action": "SUBMIT",
+          "before": { "status": "draft" },
+          "after": {
+            "status": "confirmed",
+            "snapshot_sha256": "b4dfe20b5697c0a1e7d3f2a6c8b9d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5"
+          }
+        }
+      ]
+    },
+    {
+      "id": "INC-20261029-02",
+      "date": "2026-10-29",
+      "type": "grant",
+      "amount": 50.0,
+      "biz_no": "PROMO-20261029-007",
+      "note": "活动赠送 50 积分（凭证还没截图，先存草稿）",
+      "entered_by": "张三",
+      "entered_at": "2026-10-29T10:02:00+08:00",
+      "status": "draft",
+      "snapshot": {
+        "file": "",
+        "sha256": "",
+        "bytes": 0,
+        "taken_at": ""
+      },
+      "revisions": [
+        {
+          "at": "2026-10-29T10:02:00+08:00",
+          "by": "张三",
+          "action": "CREATE",
+          "before": null,
+          "after": { "amount": 50.0, "status": "draft" }
+        }
+      ]
+    }
+  ]
+}
